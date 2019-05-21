@@ -1,0 +1,136 @@
+#!/bin/bash
+set -eu
+
+usage() {
+  echo "Usage: dtail [options] [--] path..."
+  echo "
+Options:
+  -r|--recursive
+    Watch subdirectories recursively.
+  --exclude  <pattern> | --excludei <pattern>
+    Exclude files if filename matches <pattern> (POSIX extended regular expression).
+    It is case insensitive with --excludei.
+  --fromfile <file>
+    Read filenames to watch or exclude from a file, one filename per line.
+    If filenames begin with @ they are excluded as described above.
+  -p|--poolsize <num>
+    Maximum number of watching processes. Default 1.
+"
+  exit 1
+}
+
+fail() {
+  echo $*
+  exit 2
+}
+
+targets=()
+poolsize=1
+options=(-q -e create,modify,delete)
+while [[ $# != 0 ]]; do
+  case "$1" in
+    -r|--recursive)
+      options+=($1)
+      shift
+      ;;
+    --exclude|--excludei)
+      [[ $# > 1 ]] || fail "Missing pattern for $1"
+      options+=($1 $2)
+      shift 2
+      ;;
+    --fromfile)
+      [[ $# > 1 ]] || fail "Missing filename for $1"
+      [[ -f $2 ]] || fail "No such file $2"
+      [[ -r $2 ]] || fail "Permission denied reading $2"
+      options+=($1 $2)
+      shift 2
+      ;;
+    -p|--poolsize)
+      [[ $# > 1 ]] || fail "Missing poolsize for $1"
+      poolsize=$2
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      fail "Invalid option $1"
+      ;;
+    *)
+      targets+=($1)
+      shift
+      ;;
+  esac
+done
+
+targets+=($*)
+[[ ${#targets[@]} > 0 ]] || usage
+for t in ${targets[@]}; do
+  [[ -e $t ]] || fail "Invalid path $t"
+  [[ -r $t ]] || fail "Permission denied reading $t"
+done
+
+push_filepool() {
+  if [[ ${#filepool[@]} == $poolsize ]]; then
+    kill ${filepool[0]%%:*}
+    if [[ ${#filepool[@]} > 1 ]]; then
+      unset filepool[0]
+      filepool=(${filepool[@]})
+    else
+      filepool=()
+    fi
+  fi
+  filepool+=($!:$path)
+}
+
+filepool=()
+while true; do
+  updated=($(inotifywait ${options[@]} --format '%e %w%f' -- ${targets[@]}))
+  event=${updated[0]}
+  path=${updated[1]}
+  case $event in
+  CREATE)
+    [[ -f $path && -r $path ]] || continue
+    tail -f --pid=$$ -n +1 $path &
+    disown
+    push_filepool
+    ;;
+  MODIFY)
+    [[ -f $path && -r $path ]] || continue
+    found=0
+    for ((i = 0; i < ${#filepool[@]}; i++)); do
+      if [[ ${filepool[$i]#*:} == $path ]]; then
+        found=1
+        if [[ ${#filepool[@]} > 1 ]]; then
+          unset filepool[$i]
+          filepool=(${filepool[@]})
+        else
+          filepool=()
+        fi
+        filepool+=($!:$path)
+        break
+      fi
+    done
+    if [[ $found == 0 ]]; then
+      tail -f --pid=$$ -n 1 $path &
+      disown
+      push_filepool
+    fi
+    ;;
+  DELETE)
+    for ((i = 0; i < ${#filepool[@]}; i++)); do
+      if [[ ${filepool[$i]#*:} == $path ]]; then
+        kill ${filepool[$i]%%:*}
+        if [[ ${#filepool[@]} > 1 ]]; then
+          unset filepool[$i]
+          filepool=(${filepool[@]})
+        else
+          filepool=()
+        fi
+        break
+      fi
+    done
+    ;;
+  esac
+done
