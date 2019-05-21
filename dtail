@@ -2,8 +2,8 @@
 set -eu
 
 usage() {
-  echo "Usage: dtail [options] [--] path..."
-  echo "
+  echo "Usage: dtail [options] [--] path...
+
 Options:
   -r|--recursive
     Watch subdirectories recursively.
@@ -84,15 +84,25 @@ push_filepool() {
   filepool+=($!:$path)
 }
 
+remove_filepool() {
+  if [[ ${#filepool[@]} > 1 ]]; then
+    unset filepool[$1]
+    filepool=(${filepool[@]})
+  else
+    filepool=()
+  fi
+}
+
 filepool=()
 while true; do
   updated=($(inotifywait ${options[@]} --format '%e %w%f' -- ${targets[@]}))
   event=${updated[0]}
   path=${updated[1]}
+echo $event $path
   case $event in
   CREATE)
     [[ -f $path && -r $path ]] || continue
-    tail -f --pid=$$ -n +1 $path &
+    tail -q -f --pid=$$ -n +1 $path &
     disown
     push_filepool
     ;;
@@ -102,18 +112,13 @@ while true; do
     for ((i = 0; i < ${#filepool[@]}; i++)); do
       if [[ ${filepool[$i]#*:} == $path ]]; then
         found=1
-        if [[ ${#filepool[@]} > 1 ]]; then
-          unset filepool[$i]
-          filepool=(${filepool[@]})
-        else
-          filepool=()
-        fi
+        remove_filepool $i
         filepool+=($!:$path)
         break
       fi
     done
     if [[ $found == 0 ]]; then
-      tail -f --pid=$$ -n 1 $path &
+      tail -q -f --pid=$$ -n 1 $path &
       disown
       push_filepool
     fi
@@ -122,15 +127,11 @@ while true; do
     for ((i = 0; i < ${#filepool[@]}; i++)); do
       if [[ ${filepool[$i]#*:} == $path ]]; then
         kill ${filepool[$i]%%:*}
-        if [[ ${#filepool[@]} > 1 ]]; then
-          unset filepool[$i]
-          filepool=(${filepool[@]})
-        else
-          filepool=()
-        fi
+        remove_filepool $i
         break
       fi
     done
     ;;
   esac
 done
+
