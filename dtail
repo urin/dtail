@@ -98,7 +98,6 @@ while true; do
   updated=($(inotifywait ${options[@]} --format '%e %w%f' -- ${targets[@]}))
   event=${updated[0]}
   path=${updated[1]}
-echo $event $path
   case $event in
   CREATE)
     [[ -f $path && -r $path ]] || continue
