@@ -71,7 +71,7 @@ for t in ${targets[@]}; do
   [[ -r $t ]] || fail "Permission denied reading $t"
 done
 
-push_filepool() {
+filepool_push() {
   if [[ ${#filepool[@]} == $poolsize ]]; then
     kill ${filepool[0]%%:*}
     if [[ ${#filepool[@]} > 1 ]]; then
@@ -81,16 +81,38 @@ push_filepool() {
       filepool=()
     fi
   fi
-  filepool+=($!:$path)
+  filepool+=($1:$2)
 }
 
-remove_filepool() {
-  if [[ ${#filepool[@]} > 1 ]]; then
-    unset filepool[$1]
-    filepool=(${filepool[@]})
-  else
-    filepool=()
-  fi
+filepool_find() {
+  local i
+  for ((i = 0; i < ${#filepool[@]}; i++)); do
+    if [[ ${filepool[$i]#*:} == $1 ]]; then
+      echo ${filepool[$i]}
+      break
+    fi
+  done
+}
+
+filepool_remove() {
+  local i
+  case ${#filepool[@]} in
+  0)
+    ;;
+  1)
+    if [[ ${filepool[0]#*:} == $1 ]]; then
+      filepool=()
+    fi
+    ;;
+  *)
+    for ((i = 0; i < ${#filepool[@]}; i++)); do
+      if [[ ${filepool[$i]#*:} == $1 ]]; then
+        unset filepool[$i]
+        filepool=(${filepool[@]})
+      fi
+    done
+    ;;
+  esac
 }
 
 filepool=()
@@ -103,33 +125,26 @@ while true; do
     [[ -f $path && -r $path ]] || continue
     tail -q -f --pid=$$ -n +1 $path &
     disown
-    push_filepool
+    filepool_push $! $path
     ;;
   MODIFY)
     [[ -f $path && -r $path ]] || continue
-    found=0
-    for ((i = 0; i < ${#filepool[@]}; i++)); do
-      if [[ ${filepool[$i]#*:} == $path ]]; then
-        found=1
-        remove_filepool $i
-        filepool+=($!:$path)
-        break
-      fi
-    done
-    if [[ $found == 0 ]]; then
+    f=$(filepool_find $path)
+    if [[ -n "$f" ]]; then
+      filepool_remove $path
+      filepool+=($f)
+    else
       tail -q -f --pid=$$ -n 1 $path &
       disown
-      push_filepool
+      filepool_push $! $path
     fi
     ;;
   DELETE)
-    for ((i = 0; i < ${#filepool[@]}; i++)); do
-      if [[ ${filepool[$i]#*:} == $path ]]; then
-        kill ${filepool[$i]%%:*}
-        remove_filepool $i
-        break
-      fi
-    done
+    f=$(filepool_find $path)
+    if [[ -n "$f" ]]; then
+      filepool_remove $path
+      kill ${f%%:*}
+    fi
     ;;
   esac
 done
