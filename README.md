@@ -4,6 +4,7 @@ dtail - Bash script to watch file modification using inotify
 ## Description
 
 `dtail` is a simple bash script to watch file modification in directories using [inotify\-tools](//github.com/rvoicilas/inotify-tools/wiki) and `tail -f`.
+You can watch any file that are newly created in a directory.
 
 `dtail` watches all files and directories specified by user and traps events CREATE, MODIFY and DELETE.
 
