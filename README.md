@@ -38,7 +38,7 @@ Options:
 
 ## License
 
-[MIT](//opensource.org/licenses/mit-license.php)
+[MIT](/LICENSE)
 
 ## Author
 
