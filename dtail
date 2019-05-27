@@ -26,7 +26,7 @@ fail() {
 
 targets=()
 poolsize=1
-options=(-q -e create,modify,delete)
+options=(-q -m -e create,modify,delete)
 while [[ $# != 0 ]]; do
   case "$1" in
     -r|--recursive)
@@ -116,10 +116,7 @@ filepool_remove() {
 }
 
 filepool=()
-while true; do
-  updated=($(inotifywait ${options[@]} --format '%e %w%f' -- ${targets[@]}))
-  event=${updated[0]}
-  path=${updated[1]}
+while read event path; do
   case $event in
   CREATE)
     [[ -f $path && -r $path ]] || continue
@@ -147,5 +144,4 @@ while true; do
     fi
     ;;
   esac
-done
-
+done < <(inotifywait ${options[@]} --format '%e %w%f' -- ${targets[@]})
