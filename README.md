@@ -1,20 +1,21 @@
-dtail - Bash script to watch file modification using inotify
+dtail - Bash script to watch contents of files using inotify
 ===
+
+## Overview
+
+`dtail` is a simple bash script to watch contents of file in directories using [inotify\-tools](//github.com/rvoicilas/inotify-tools/wiki) and `tail`.
+You can watch any file even if they are newly created in directories.
 
 ## Description
 
-`dtail` is a simple bash script to watch file modification in directories using [inotify\-tools](//github.com/rvoicilas/inotify-tools/wiki) and `tail -f`.
-You can watch any file that are newly created in a directory.
+`dtail` watches all files and directories trapping events CREATE, MODIFY and DELETE.
 
-`dtail` watches all files and directories specified by user and traps events CREATE, MODIFY and DELETE.
+`dtail` creates a `tail` process for each watching file and has a process pool that is a list of `tail` processes.
+When CREATE or MODIFY event of a file that is not monitored by `dtail` is fired, `dtail` starts background `tail` process and adds it to the process pool. If the pool is full, the oldest process is deleted from the pool and the tail process is killed.
 
-If a event of directory or file which the user does not have reading permission, the event is ignored.
+The pool size, that is the maximum number of background `tail` processes, can be specified by user.
 
-When CREATE event or MODIFY event of file that is not monitored by `dtail` is fired, `dtail` starts background `tail` process and adds it to the process pool.
-Yes, `dtail` uses pool strategy to avoid resource overrun of the user and operating system.
-
-The pool size, that is the maximum number of background `tail` processes, can be specified as command line option.
-If the pool is full, the oldest process is deleted from the pool and the tail process is killed.
+Event of a directory or file without reading permission is ignored.
 
 ## Requirement
 
