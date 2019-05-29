@@ -120,7 +120,7 @@ while read event path; do
   case $event in
   CREATE)
     [[ -f $path && -r $path ]] || continue
-    tail -q -f --pid=$$ -n +1 $path &
+    tail -q -F --pid=$$ -n +1 $path &
     disown
     filepool_push $! $path
     ;;
@@ -131,7 +131,7 @@ while read event path; do
       filepool_remove $path
       filepool+=($f)
     else
-      tail -q -f --pid=$$ -n 1 $path &
+      tail -q -F --pid=$$ -n 1 $path &
       disown
       filepool_push $! $path
     fi
