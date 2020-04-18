@@ -116,6 +116,16 @@ filepool_remove() {
 }
 
 filepool=()
+
+for path in $(
+  find ${targets[@]} -type f -readable -printf '%T@ %p\n' |
+    sort -n | tail -n $poolsize | cut -f2- -d' '
+); do
+  tail -q -F --pid=$$ -n 0 $path &
+  disown
+  filepool_push $! $path
+done
+
 while read event path; do
   case $event in
   CREATE)
