@@ -20,7 +20,7 @@ Options:
 }
 
 fail() {
-  echo $*
+  echo $@
   exit 2
 }
 
@@ -64,7 +64,7 @@ while [[ $# != 0 ]]; do
   esac
 done
 
-targets+=($*)
+targets+=($@)
 [[ ${#targets[@]} > 0 ]] || usage
 for t in ${targets[@]}; do
   [[ -e $t ]] || fail "Invalid path $t"
